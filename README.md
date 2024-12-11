@@ -1,6 +1,6 @@
 # UrCart Scraper
 
-A web scraping CLI that automatically collects and compares product names across major Saudi supermarkets: Carrefour, Tamimi Markets, and Danube (more supermarkets can be added when scraper is implemented). The scraper matches identical products between stores and stores the data in Firebase, making it easy to track and compare prices.
+A web scraping CLI that automatically collects and compares product names across major Saudi supermarkets: Carrefour, Tamimi Markets, and Danube (more supermarkets can be added when their scraper is implemented). The scraper matches identical products between stores and stores the data in Firebase, making it easy to track and compare prices.
 
 ## Features
 
