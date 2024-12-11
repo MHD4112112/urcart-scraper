@@ -74,4 +74,5 @@ node index.js
 ![CLI Menu](images/CLI-Menu.png)
 
 **Output:**
+
 ![CLI Output](images/CLI-Output.png)
