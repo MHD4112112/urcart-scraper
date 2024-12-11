@@ -3,6 +3,7 @@ function normalizeProductName(name) {
     let normalized = name
         .toLowerCase()
         .replace(/\*\*/g, '')  // Remove asterisks
+        .replace(/'/g, '')     // Remove quotes
         .replace(/-/g, ' ')    // Replace hyphens with spaces
         .replace(/[^\w\s.]/g, '')  // Remove other special characters
         .replace(/\s+/g, ' ')  // Replace multiple spaces with single space
@@ -22,7 +23,8 @@ function normalizeProductName(name) {
 
 function findMatches(products) {
     const { carrefour = [], tamimi = [], danube = [] } = products;
-    const matches = [];
+    const fullMatches = [];
+    const partialMatches = [];
     const unmatched = {
         carrefour: [],
         tamimi: [],
@@ -71,39 +73,47 @@ function findMatches(products) {
         const tamimiProduct = normalizedProducts.tamimi.get(normalizedName);
         const danubeProduct = normalizedProducts.danube.get(normalizedName);
 
-        if ((carrefourProduct && tamimiProduct) || 
-            (carrefourProduct && danubeProduct) || 
-            (tamimiProduct && danubeProduct)) {
-            matches.push({
-                normalizedName,
-                originalNames: {
-                    carrefour: carrefourProduct?.name,
-                    tamimi: tamimiProduct?.name,
-                    danube: danubeProduct?.name,
-                },
-                stores: {
-                    carrefour: carrefourProduct ? {
-                        name: carrefourProduct.name,
-                        price: carrefourProduct.price,
-                        link: carrefourProduct.productLink,
-                        imageLink: carrefourProduct.productImageLink
-                    } : null,
-                    tamimi: tamimiProduct ? {
-                        name: tamimiProduct.name,
-                        price: tamimiProduct.price,
-                        link: tamimiProduct.productLink,
-                        imageLink: tamimiProduct.productImageLink
-                    } : null,
-                    danube: danubeProduct ? {
-                        name: danubeProduct.name,
-                        price: danubeProduct.price,
-                        link: danubeProduct.productLink,
-                        imageLink: danubeProduct.productImageLink
-                    } : null
-                }
-            });
-        } else {
-            // Add to unmatched
+        const matchObject = {
+            normalizedName,
+            originalNames: {
+                carrefour: carrefourProduct?.name,
+                tamimi: tamimiProduct?.name,
+                danube: danubeProduct?.name,
+            },
+            stores: {
+                carrefour: carrefourProduct ? {
+                    name: carrefourProduct.name,
+                    price: carrefourProduct.price,
+                    link: carrefourProduct.productLink,
+                    imageLink: carrefourProduct.productImageLink
+                } : null,
+                tamimi: tamimiProduct ? {
+                    name: tamimiProduct.name,
+                    price: tamimiProduct.price,
+                    link: tamimiProduct.productLink,
+                    imageLink: tamimiProduct.productImageLink
+                } : null,
+                danube: danubeProduct ? {
+                    name: danubeProduct.name,
+                    price: danubeProduct.price,
+                    link: danubeProduct.productLink,
+                    imageLink: danubeProduct.productImageLink
+                } : null
+            }
+        };
+
+        // Check if product exists in all three stores
+        if (carrefourProduct && tamimiProduct && danubeProduct) {
+            fullMatches.push(matchObject);
+        }
+        // Check if product exists in exactly two stores
+        else if ((carrefourProduct && tamimiProduct) || 
+                 (carrefourProduct && danubeProduct) || 
+                 (tamimiProduct && danubeProduct)) {
+            partialMatches.push(matchObject);
+        }
+        // Add to unmatched if only in one store
+        else {
             if (carrefourProduct) unmatched.carrefour.push(carrefourProduct);
             if (tamimiProduct) unmatched.tamimi.push(tamimiProduct);
             if (danubeProduct) unmatched.danube.push(danubeProduct);
@@ -126,12 +136,14 @@ function findMatches(products) {
     };
 
     return {
-        matches,
+        fullMatches,
+        partialMatches,
         unmatched,
         debugInfo,
         stats: {
             totalProducts: carrefour.length + tamimi.length + danube.length,
-            matchedProducts: matches.length,
+            fullMatchProducts: fullMatches.length,
+            partialMatchProducts: partialMatches.length,
             unmatchedProducts: {
                 carrefour: unmatched.carrefour.length,
                 tamimi: unmatched.tamimi.length,

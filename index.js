@@ -4,7 +4,7 @@ const path = require('path');
 const config = require('./config');
 const { scrapeCarrefourCategory, scrapeTamimiCategory, scrapeDanubeCategory } = require('./scraper');
 const { findMatches } = require('./productMatcher');
-const { startPeriodicUpdates } = require('./firebase');
+const { startPeriodicUpdates, scrapeAndStoreCategory } = require('./firebase');
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -28,25 +28,56 @@ Select test mode:
         });
     });
 }
+async function selectCategory() {
+    console.log('\nSelect category:');
+    const categories = Object.keys(config.CATEGORY_URLS);
+    categories.forEach((category, index) => {
+        console.log(`${index + 1}. ${category}`);
+    });
+    console.log(`${categories.length + 1}. Back`);
 
+    const choice = await new Promise(resolve => {
+        rl.question('Choose category: ', resolve);
+    });
+
+    const categoryIndex = parseInt(choice) - 1;
+    return categoryIndex < categories.length ? categories[categoryIndex] : null;
+}
+
+async function selectLiveMode() {
+    console.log(`
+Select mode:
+1. Scrape All Categories
+2. Scrape Specific Category
+3. Back to Main Menu
+`);
+    return new Promise(resolve => {
+        rl.question('Select option: ', resolve);
+    });
+}
 
 async function testMode() {
     try {
         const choice = await selectTestMode();
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
+        if (choice === '5') return;
+
+        const category = await selectCategory();
+        if (!category) return;
+
         switch(choice) {
             case '1':
-                console.log('\nRunning Comparison Mode - Scraping all stores...');
+                console.log(`\nRunning Comparison Mode - Scraping all stores for ${category}...`);
                 
                 console.log('\nScraping Carrefour...');
-                const carrefourProducts = await scrapeCarrefourCategory(config.CATEGORY_URLS.DAIRY.carrefour);
+                const carrefourProducts = await scrapeCarrefourCategory(config.CATEGORY_URLS[category].carrefour);
                 
                 console.log('\nScraping Tamimi...');
-                const tamimiProducts = await scrapeTamimiCategory(config.CATEGORY_URLS.DAIRY.tamimi);
+                const tamimiProducts = await scrapeTamimiCategory(config.CATEGORY_URLS[category].tamimi);
                 
                 console.log('\nScraping Danube...');
-                const danubeProducts = await scrapeDanubeCategory(config.CATEGORY_URLS.DAIRY.danube);
+                const danubeProducts = await scrapeDanubeCategory(config.CATEGORY_URLS[category].danube);
 
                 const results = findMatches({
                     carrefour: carrefourProducts,
@@ -54,7 +85,7 @@ async function testMode() {
                     danube: danubeProducts
                 });
 
-                const compareFilename = `comparison_results_${timestamp}.json`;
+                const compareFilename = `${category}_comparison_results_${timestamp}.json`;
                 await fs.writeFile(
                     path.join(process.cwd(), 'scraped_data', compareFilename),
                     JSON.stringify(results, null, 2)
@@ -72,9 +103,9 @@ async function testMode() {
                 break;
 
             case '2':
-                console.log('\nScraping Carrefour...');
-                const carrefourResults = await scrapeCarrefourCategory(config.CATEGORY_URLS.DAIRY.carrefour);
-                const carrefourFilename = `carrefour_results_${timestamp}.json`;
+                console.log(`\nScraping Carrefour ${category}...`);
+                const carrefourResults = await scrapeCarrefourCategory(config.CATEGORY_URLS[category].carrefour);
+                const carrefourFilename = `${category}_carrefour_results_${timestamp}.json`;
                 
                 await fs.writeFile(
                     path.join(process.cwd(), 'scraped_data', carrefourFilename),
@@ -86,9 +117,9 @@ async function testMode() {
                 break;
 
             case '3':
-                console.log('\nScraping Tamimi...');
-                const tamimiResults = await scrapeTamimiCategory(config.CATEGORY_URLS.DAIRY.tamimi);
-                const tamimiFilename = `tamimi_results_${timestamp}.json`;
+                console.log(`\nScraping Tamimi ${category}...`);
+                const tamimiResults = await scrapeTamimiCategory(config.CATEGORY_URLS[category].tamimi);
+                const tamimiFilename = `${category}_tamimi_results_${timestamp}.json`;
                 
                 await fs.writeFile(
                     path.join(process.cwd(), 'scraped_data', tamimiFilename),
@@ -100,9 +131,9 @@ async function testMode() {
                 break;
 
             case '4':
-                console.log('\nScraping Danube...');
-                const danubeResults = await scrapeDanubeCategory(config.CATEGORY_URLS.DAIRY.danube);
-                const danubeFilename = `danube_results_${timestamp}.json`;
+                console.log(`\nScraping Danube ${category}...`);
+                const danubeResults = await scrapeDanubeCategory(config.CATEGORY_URLS[category].danube);
+                const danubeFilename = `${category}_danube_results_${timestamp}.json`;
                 
                 await fs.writeFile(
                     path.join(process.cwd(), 'scraped_data', danubeFilename),
@@ -112,9 +143,6 @@ async function testMode() {
                 console.log(`\nResults saved to scraped_data/${danubeFilename}`);
                 console.log(`Total products scraped: ${danubeResults.length}`);
                 break;
-
-            case '5':
-                return;
 
             default:
                 console.log('\nInvalid choice. Please try again.');
@@ -126,8 +154,28 @@ async function testMode() {
 }
 async function liveMode() {
     try {
-        console.log('\nStarting Live Mode with periodic updates...');
-        await startPeriodicUpdates();
+        const choice = await selectLiveMode();
+        
+        switch(choice) {
+            case '1':
+                console.log('\nStarting periodic updates for all categories...');
+                await startPeriodicUpdates();
+                break;
+            case '2':
+                const category = await selectCategory();
+                if (category) {
+                    console.log(`\nScraping ${category}...`);
+                    await scrapeAndStoreCategory(config.CATEGORY_URLS[category], category);
+                }
+                promptContinue();
+                break;
+            case '3':
+                startApp();
+                break;
+            default:
+                console.log('\nInvalid choice');
+                promptContinue();
+        }
     } catch (error) {
         console.error('Error in Live Mode:', error);
         promptContinue();

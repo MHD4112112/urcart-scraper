@@ -182,7 +182,7 @@ async function scrapeCarrefourCategory(url, retryCount = 0) {
         await page.setUserAgent(config.USER_AGENT);
         await page.setViewport({ width: 1920, height: 1080 });
         
-        console.log('Navigating to Carrefour Dairy category...');
+        console.log('Navigating to Carrefour category...');
         
         await page.goto(url, { 
             waitUntil: 'networkidle0',
@@ -203,7 +203,7 @@ async function scrapeCarrefourCategory(url, retryCount = 0) {
             
             return Array.from(productContainers).map(container => {
                 const nameElement = container.querySelector('[data-testid="product_name"]');
-                const name = nameElement ? nameElement.textContent.trim() : '';
+                const name = nameElement ? nameElement.textContent.trim().replace(/'/g, '') : '';
                 const productLink = nameElement ? nameElement.href : '';
                 
                 const wholePriceElement = container.querySelector('.css-14zpref');
@@ -235,7 +235,7 @@ async function scrapeCarrefourCategory(url, retryCount = 0) {
             }).filter(product => product !== null);
         });
 
-        console.log(`Successfully scraped ${products.length} dairy products`);
+        console.log(`Successfully scraped ${products.length} products`);
         
         if (products.length > 0) {
             console.log('\nFirst and last products:');
@@ -305,7 +305,7 @@ async function scrapeDanubeCategory(url, retryCount = 0) {
             // Get all products on current page
             const products = await page.evaluate(() => {
                 return Array.from(document.querySelectorAll('.ais-hits--item')).map(item => {
-                    const name = item.querySelector('.product-box__name')?.textContent.trim();
+                    const name = item.querySelector('.product-box__name')?.textContent.trim().replace(/'/g, '');
                     const priceText = item.querySelector('.product-price__current-price')?.textContent.trim();
                     const price = priceText ? parseFloat(priceText.replace('SAR', '').trim()) : null;
                     const link = item.querySelector('.product-box a')?.href;

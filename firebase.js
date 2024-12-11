@@ -11,13 +11,12 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-async function storeMatchedProducts() {
+async function scrapeAndStoreCategory(categoryUrls, categoryName) {
     try {
-        console.log('Starting product scraping...');
-        
-        const carrefourProducts = await scrapeCarrefourCategory(config.CATEGORY_URLS.DAIRY.carrefour);
-        const tamimiProducts = await scrapeTamimiCategory(config.CATEGORY_URLS.DAIRY.tamimi);
-        const danubeProducts = await scrapeDanubeCategory(config.CATEGORY_URLS.DAIRY.danube);
+        console.log(`Scraping ${categoryName}...`);
+        const carrefourProducts = await scrapeCarrefourCategory(categoryUrls.carrefour);
+        const tamimiProducts = await scrapeTamimiCategory(categoryUrls.tamimi);
+        const danubeProducts = await scrapeDanubeCategory(categoryUrls.danube);
 
         const results = findMatches({
             carrefour: carrefourProducts,
@@ -25,79 +24,103 @@ async function storeMatchedProducts() {
             danube: danubeProducts
         });
 
-        // Filter for products that exist in all three stores
-        const tripleMatches = results.matches.filter(product => 
-            product.stores.carrefour && 
-            product.stores.tamimi && 
-            product.stores.danube
-        );
+        // Combine full and partial matches
+        const allMatches = [...results.fullMatches, ...results.partialMatches];
 
         const batch = db.batch();
         const productsRef = db.collection('Products2.0');
 
-        for (const product of tripleMatches) {
-            const docId = product.originalNames.carrefour
-                .toLowerCase()
-                .trim()
-                .replace(/[^\w\s-]/g, '')
-                .replace(/\s+/g, '-');
+        let storedCount = 0;
 
-            const productData = {
-                name: product.originalNames.carrefour,
-                category: 'Dairy',
-                isMeasurable: false,
-                description: '',
-                stores: {
-                    carrefour: {
-                        price: product.stores.carrefour.price,
-                        productLink: product.stores.carrefour.link || '',
-                        productImageLink: product.stores.carrefour.imageLink || ''
-                    },
-                    tamimi: {
-                        price: product.stores.tamimi.price,
-                        productLink: product.stores.tamimi.link || '',
-                        productImageLink: product.stores.tamimi.imageLink || ''
-                    },
-                    danube: {
-                        price: product.stores.danube.price,
-                        productLink: product.stores.danube.link || '',
-                        productImageLink: product.stores.danube.imageLink || ''
-                    }
-                },
-                lastUpdated: admin.firestore.FieldValue.serverTimestamp()
-            };
+        for (const product of allMatches) {
+            const docId = product.originalNames.carrefour || 
+                         product.originalNames.tamimi || 
+                         product.originalNames.danube;
 
-            const docRef = productsRef.doc(docId);
-            batch.set(docRef, productData, { merge: true });
+            if (docId) {
+                const cleanDocId = docId
+                    .toLowerCase()
+                    .trim()
+                    .replace(/[^\w\s-]/g, '')
+                    .replace(/\s+/g, '-');
+
+                const productData = {
+                    name: docId,
+                    category: categoryName,
+                    isMeasurable: false,
+                    description: '',
+                    matchType: results.fullMatches.includes(product) ? 'full' : 'partial',
+                    stores: {
+                        carrefour: product.stores.carrefour ? {
+                            price: product.stores.carrefour.price,
+                            productLink: product.stores.carrefour.link || '',
+                            productImageLink: product.stores.carrefour.imageLink || ''
+                        } : null,
+                        tamimi: product.stores.tamimi ? {
+                            price: product.stores.tamimi.price,
+                            productLink: product.stores.tamimi.link || '',
+                            productImageLink: product.stores.tamimi.imageLink || ''
+                        } : null,
+                        danube: product.stores.danube ? {
+                            price: product.stores.danube.price,
+                            productLink: product.stores.danube.link || '',
+                            productImageLink: product.stores.danube.imageLink || ''
+                        } : null
+                    },
+                    lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+                };
+
+                const docRef = productsRef.doc(cleanDocId);
+                batch.set(docRef, productData, { merge: true });
+                storedCount++;
+            }
         }
 
         await batch.commit();
-        console.log(`Stored ${tripleMatches.length} matched products in Firestore`);
-        return tripleMatches.length;
+        console.log(`Successfully stored ${storedCount} products in Firestore`);
+        console.log(`Full matches: ${results.stats.fullMatchProducts}`);
+        console.log(`Partial matches: ${results.stats.partialMatchProducts}`);
+        
+        return storedCount;
     } catch (error) {
         console.error('Error storing products:', error);
         throw error;
     }
 }
 
-// Function to run periodic updates
+async function storeMatchedProducts() {
+    try {
+        console.log('Starting product scraping for all categories...');
+        let totalProducts = 0;
+
+        for (const [categoryName, urls] of Object.entries(config.CATEGORY_URLS)) {
+            console.log(`Processing ${categoryName}...`);
+            const count = await scrapeAndStoreCategory(urls, categoryName);
+            totalProducts += count;
+        }
+
+        return totalProducts;
+    } catch (error) {
+        console.error('Error storing products:', error);
+        throw error;
+    }
+}
+
 function startPeriodicUpdates() {
     console.log('Starting periodic updates...');
     
-    // Run immediately on start
     storeMatchedProducts()
-        .then(count => console.log(`Initial update completed: ${count} products stored`))
+        .then(count => console.log(`Initial update completed: ${count} total products stored`))
         .catch(console.error);
 
-    // Then run every SCRAPE_INTERVAL
     setInterval(async () => {
         try {
             const count = await storeMatchedProducts();
-            console.log(`Periodic update completed: ${count} products stored`);
+            console.log(`Periodic update completed: ${count} total products stored`);
         } catch (error) {
             console.error('Error in periodic update:', error);
         }
     }, config.SCRAPE_INTERVAL);
 }
 
-module.exports = { storeMatchedProducts, startPeriodicUpdates };
+module.exports = { storeMatchedProducts, startPeriodicUpdates, scrapeAndStoreCategory };
