@@ -9,7 +9,7 @@ A web scraping CLI that automatically collects and compares product names across
   - Tamimi Markets
   - Danube
 - **Smart Product Matching**: Matches identical products across different stores using name normalization
-- **Firebase Integration**: Stores matched products in Firestore for easy access
+- **Firebase Integration**: Stores matched products in Firestore for easy access (only for live mode, test mode does not require a firebase project)
 - **Multiple Categories**: Supports different product categories
 - **Price Comparison**: Tracks prices across stores
 - **Periodic Updates**: Can run in live mode to update prices every 12 hours (can be changed in config.js file)
@@ -20,7 +20,7 @@ A web scraping CLI that automatically collects and compares product names across
 Before installing, make sure you have:
 
 1. Node.js installed (v14 or higher)
-2. A Firebase project set up
+2. A Firebase project set up (test mode does not require firebase)
 3. Firebase service account credentials (must be in root folder)
 
 ## Installation
